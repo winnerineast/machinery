@@ -8,7 +8,7 @@
 //
 //  The copyright to the computer program(s) herein
 //  is the property of Verstraeten.io, Belgium.
-//  The program(s) may be used and/or copied under 
+//  The program(s) may be used and/or copied under
 //  the CC-NC-ND license model.
 //
 //  https://doc.kerberos.io/license
@@ -34,6 +34,7 @@
 #include <sys/stat.h>
 #include <sstream>
 #include <cctype>
+#include <algorithm>
 
 namespace kerberos
 {
@@ -46,15 +47,20 @@ namespace kerberos
         kerberos::StringMap getSettingsFromXML(const std::string & path);
         std::string printStringMap(const std::string & prefix, const kerberos::StringMap & map);
         bool replace(std::string& str, const std::string& from, const std::string& to);
+        void replaceAll(std::string& str, const std::string& from, const std::string& to);
         std::string to_string (const int & t);
         std::string generatePath(const std::string timezone, const std::string & subDirectory = "");
         std::string getTimestamp();
         std::string getMicroseconds();
         const std::string currentDateTime(std::string timezone = "");
         int compareTime(const std::string & first, const std::string & second);
+        const std::string random_string(size_t length);
         const std::string getRootDirectory(const char * relativeDirectory);
         void tokenize(const std::string & str, std::vector<std::string> & tokens, const std::string & delimiters = ",");
         std::string normalizePath(const std::string & cwd, const std::string & command, const std::string & binaryPath);
+        std::string GetStdoutFromCommand(std::string cmd);
+        std::string	returnPathOfLink(const char* pathname);
+        std::string removeUnwantedChars(std::string & text);
     }
 }
 
