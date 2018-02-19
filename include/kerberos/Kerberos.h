@@ -32,7 +32,10 @@ namespace kerberos
     {
         private:
 
-            Kerberos(){};
+            Kerberos(){
+                m_ioThread_running = false;
+                m_streamThread_running = false;
+            };
             ~Kerberos(){delete guard; delete capture; delete machinery;};
 
             void bootstrap(StringMap & parameters);
@@ -61,8 +64,10 @@ namespace kerberos
             Capture * capture;
             Stream * stream;
             pthread_t m_streamThread;
+            bool m_streamThread_running;
             pthread_mutex_t m_streamLock;
             pthread_t m_ioThread;
+            bool m_ioThread_running;
             pthread_mutex_t m_ioLock;
             DetectionVector m_detections;
             FW::Guard * guard;
@@ -70,6 +75,7 @@ namespace kerberos
             ImageVector m_images;
             int m_captureDelayTime;
             StringMap m_parameters;
+            std::string m_name;
 
             // -----------
             // Singleton

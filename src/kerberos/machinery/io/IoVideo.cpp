@@ -6,6 +6,9 @@ namespace kerberos
     {
         Io::setup(settings);
 
+        throttle.setRate(std::stoi(settings.at("ios.Video.throttler")));
+
+        m_currentVideoPath = "";
         m_writer = 0;
         m_recording = false;
         pthread_mutex_init(&m_lock, NULL);
@@ -241,83 +244,106 @@ namespace kerberos
 
     void IoVideo::fire(JSON & data)
     {
-        // ----------------------------------------------------------
-        // If a video is recording, and a new detection is coming in,
-        // we'll reset the timer. So the video is expaned.
-        // timer = ...
-
-        pthread_mutex_lock(&m_time_lock);
-        m_timeStartedRecording = (double) (cv::getTickCount() / cv::getTickFrequency());
-        pthread_mutex_unlock(&m_time_lock);
-
-        // -----------------------------------------------------
-        // Check if already recording, if not start a new video
-
-        pthread_mutex_lock(&m_release_lock);
-
-        BINFO << "IoVideo: firing";
-
-        // ------------------
-        // Check if the camera supports on board recording (camera specific),
-        // and if you want to use it. If not it will fallback on the video writer
-        // that ships with OpenCV/FFmpeg.
-
-        if(m_capture->m_onBoardRecording && m_enableHardwareEncoding)
+        if(throttle.canExecute())
         {
-            if(!m_recording)
+            // ----------------------------------------------------------
+            // If a video is recording, and a new detection is coming in,
+            // we'll reset the timer. So the video is expaned.
+            // timer = ...
+
+            pthread_mutex_lock(&m_time_lock);
+            m_timeStartedRecording = (double) (cv::getTickCount() / cv::getTickFrequency());
+            pthread_mutex_unlock(&m_time_lock);
+
+            // -----------------------------------------------------
+            // Check if already recording, if not start a new video
+
+            pthread_mutex_lock(&m_release_lock);
+
+            BINFO << "IoVideo: firing";
+
+            // ------------------
+            // Check if the camera supports on board recording (camera specific),
+            // and if you want to use it. If not it will fallback on the video writer
+            // that ships with OpenCV/FFmpeg.
+
+            if(m_capture->m_onBoardRecording && m_enableHardwareEncoding)
             {
-                // ----------------------------------------
-                // The naming convention that will be used
-                // for the image.
+                if(!m_recording)
+                {
+                    // ----------------------------------------
+                    // The naming convention that will be used
+                    // for the image.
 
-                std::string pathToVideo = getVideoFormat();
-                m_fileName = buildPath(pathToVideo, data);
-                m_path = m_hardwareDirectory + m_fileName + ".h264";
+                    std::string pathToVideo = getVideoFormat();
+                    m_fileName = buildPath(pathToVideo, data);
+                    m_path = m_hardwareDirectory + m_fileName + ".h264";
 
-                startOnboardRecordThread();
-                m_recording = true;
+                    std::string expectedPath = m_fileName + "." + m_extension;
+                    m_currentVideoPath = expectedPath;
+
+                    // ---------------
+                    // Start recording
+
+                    startOnboardRecordThread();
+                    m_recording = true;
+                }
             }
+            // Won't use as we use hardware encoding in the else branch beneath.
+            // Found a work-a-round how to use h264_omx directly with OpenCV and FFMPEG.
+            /*else if(m_capture->m_onFFMPEGrecording)
+            {
+                if(!m_recording)
+                {
+                    // ----------------------------------------
+                    // The naming convention that will be used
+                    // for the image.
+
+                    std::string pathToVideo = getVideoFormat();
+                    m_fileName = buildPath(pathToVideo, data) + "." + m_extension;
+                    m_path = m_directory + m_fileName;
+
+                    startFFMPEGRecordThread();
+                    m_recording = true;
+                }
+            }*/
+            else // Use built-in OpenCV
+            {
+                if(m_capture && m_writer == 0 && !m_recording)
+                {
+                    // ----------------------------------------
+                    // The naming convention that will be used
+                    // for the image.
+
+                    std::string pathToVideo = getVideoFormat();
+                    m_fileName = buildPath(pathToVideo, data) + "." + m_extension;
+                    m_path = m_directory + m_fileName;
+                    Image image = m_capture->retrieve();
+                    m_currentVideoPath = m_fileName;
+
+                    // ---------------
+                    // Start recording
+
+                    BINFO << "IoVideo: start new recording " << m_fileName;
+
+                    m_writer = new cv::VideoWriter();
+                    m_writer->open(m_path, m_codec, m_fps, cv::Size(image.getColumns(), image.getRows()));
+
+                    startRecordThread();
+                    m_recording = true;
+                }
+            }
+
+            // -------------------------------------------------------
+            // Add path to JSON object, so other IO devices can use it
+
+            JSONValue path;
+            JSON::AllocatorType& allocator = data.GetAllocator();
+            path.SetString(m_currentVideoPath.c_str(), allocator);
+            data.AddMember("pathToVideo", path, allocator);
+
+            pthread_mutex_unlock(&m_release_lock);
         }
-        /*else if(m_capture->m_onFFMPEGrecording) // TODO: Use FFMPEG to record.
-        {
-            if(!m_recording)
-            {
-                // ----------------------------------------
-                // The naming convention that will be used
-                // for the image.
-
-                std::string pathToVideo = getVideoFormat();
-                m_fileName = buildPath(pathToVideo, data) + "." + m_extension;
-                m_path = m_directory + m_fileName;
-
-                startFFMPEGRecordThread();
-                m_recording = true;
-            }
-        }*/
-        else // Use built-in OpenCV
-        {
-            if(m_capture && m_writer == 0 && !m_recording)
-            {
-                // ----------------------------------------
-                // The naming convention that will be used
-                // for the image.
-
-                std::string pathToVideo = getVideoFormat();
-                m_fileName = buildPath(pathToVideo, data) + "." + m_extension;
-                m_path = m_directory + m_fileName;
-                Image image = m_capture->retrieve();
-
-                BINFO << "IoVideo: start new recording " << m_fileName;
-
-                m_writer = new cv::VideoWriter();
-                m_writer->open(m_path, m_codec, m_fps, cv::Size(image.getColumns(), image.getRows()));
-
-                startRecordThread();
-                m_recording = true;
-            }
-        }
-
-        pthread_mutex_unlock(&m_release_lock);
     }
 
     void IoVideo::disableCapture()
@@ -528,12 +554,13 @@ namespace kerberos
     {
         IoVideo * video = (IoVideo *) self;
 
+        double tickFrequency = cv::getTickFrequency();
         double cronoPause = (double)cvGetTickCount();
         double cronoFPS = cronoPause;
-        double cronoTime = (double) (cv::getTickCount() / cv::getTickFrequency());
-        double timeElapsed = 0;
+        double cronoTime = (double) (cv::getTickCount() / tickFrequency);
         double timeToSleep = 0;
         double startedRecording = cronoTime;
+        double fpsToTime = 1. / video->m_fps;
 
         BINFO << "IoVideo (OpenCV): start writing images";
 
@@ -570,10 +597,8 @@ namespace kerberos
                 pthread_mutex_unlock(&video->m_time_lock);
 
                 cronoPause = (double) cv::getTickCount();
-                cronoTime = cronoPause / cv::getTickFrequency();
-                timeElapsed = (cronoPause - cronoFPS) / cv::getTickFrequency();
-                double fpsToTime = 1. / video->m_fps;
-                timeToSleep = fpsToTime - timeElapsed;
+                cronoTime = cronoPause / tickFrequency;
+                timeToSleep = fpsToTime - ((cronoPause - cronoFPS) / tickFrequency);
 
                 if(timeToSleep > 0)
                 {
@@ -649,6 +674,7 @@ namespace kerberos
             tstruct = *localtime(&now);
             strftime(buf, sizeof(buf), timeformat, &tstruct);
 
+            cv::rectangle(image.getImage(), cv::Point(7,16), cv::Point(200,37), CV_RGB(0,0,0), CV_FILLED);
             cv::putText(image.getImage(), buf, cv::Point(10,30), cv::FONT_HERSHEY_SIMPLEX, 0.5, getTimestampColor());
         }
     }
@@ -740,7 +766,6 @@ namespace kerberos
     void IoVideo::stopOnboardRecordThread()
     {
         pthread_cancel(m_recordOnboardThread);
-        pthread_join(m_recordOnboardThread, NULL);
     }
 
     void IoVideo::startFFMPEGRecordThread()
@@ -752,7 +777,6 @@ namespace kerberos
     void IoVideo::stopFFMPEGRecordThread()
     {
         pthread_cancel(m_recordOnFFMPEGThread);
-        pthread_join(m_recordOnFFMPEGThread, NULL);
     }
 
     void IoVideo::startRecordThread()
@@ -764,7 +788,6 @@ namespace kerberos
     void IoVideo::stopRecordThread()
     {
         pthread_cancel(m_recordThread);
-        pthread_join(m_recordThread, NULL);
     }
 
     void IoVideo::startRetrieveThread()
@@ -776,7 +799,6 @@ namespace kerberos
     void IoVideo::stopRetrieveThread()
     {
         pthread_cancel(m_retrieveThread);
-        pthread_join(m_retrieveThread, NULL);
     }
 
     void IoVideo::scan()
@@ -785,13 +807,13 @@ namespace kerberos
         std::string directory = m_directory;
         std::string extension = m_extension;
 
-        for(;;)
+        while(m_convertThread_running)
         {
             std::vector<std::string> storage;
             helper::getFilesInDirectory(storage, SYMBOL_DIRECTORY); // get all symbol links of directory
 
             std::vector<std::string>::iterator it = storage.begin();
-            while(it != storage.end())
+            while(it != storage.end() && !m_recording) // When videos to process and not recording.
             {
                 std::string file = *it;
 
@@ -833,9 +855,11 @@ namespace kerberos
                 }
 
                 it++;
+
+                usleep(5000*1000); // wait for 5 seconds.
             }
 
-            usleep(1000*1000); // every second.
+            usleep(5000*1000); // wait for 5 seconds.
         }
     }
 
@@ -850,11 +874,13 @@ namespace kerberos
 
     void IoVideo::startConvertThread()
     {
+        m_convertThread_running = true;
         pthread_create(&m_convertThread, NULL, convertContinuously, this);
     }
 
     void IoVideo::stopConvertThread()
     {
+        m_convertThread_running = false;
         pthread_cancel(m_convertThread);
         pthread_join(m_convertThread, NULL);
     }

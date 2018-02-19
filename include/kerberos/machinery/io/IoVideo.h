@@ -23,6 +23,7 @@
 #include <time.h>
 #include <pthread.h> //for threading , link with lpthread
 #include <sys/stat.h>
+#include "Throttler.h"
 
 namespace kerberos
 {
@@ -42,6 +43,7 @@ namespace kerberos
             FileManager m_fileManager;
             std::string m_publicKey;
             std::string m_privateKey;
+            Throttler throttle;
 
         public:
             IoVideo(){};
@@ -91,6 +93,7 @@ namespace kerberos
             pthread_t m_recordOnboardThread;
             pthread_t m_recordOnFFMPEGThread;
             pthread_t m_convertThread;
+            bool m_convertThread_running;
             double m_timeStartedRecording;
 
             void startOnboardRecordThread();
@@ -118,6 +121,7 @@ namespace kerberos
             std::string m_hardwareDirectory;
             std::string m_path;
             std::string m_encodingBinary;
+            std::string m_currentVideoPath;
     };
 }
 #endif

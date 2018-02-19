@@ -20,11 +20,6 @@ namespace kerberos
         std::string configuration = (helper::getValueByKey(parameters, "config")) ?: CONFIGURATION_PATH;
         configure(configuration);
 
-        // ------------------
-        // Open the io thread
-
-        startIOThread();
-
         // ------------------------------------------
         // Guard is a filewatcher, that looks if the
         // configuration has been changed. On change
@@ -97,6 +92,10 @@ namespace kerberos
     {
         JSON::AllocatorType& allocator = data.GetAllocator();
 
+        JSONValue name;
+        name.SetString(m_name.c_str(), allocator);
+        data.AddMember("name", name, allocator);
+
         JSONValue timestamp;
         timestamp.SetString(kerberos::helper::getTimestamp().c_str(), allocator);
         data.AddMember("timestamp", timestamp, allocator);
@@ -139,9 +138,13 @@ namespace kerberos
 
         LINFO << helper::printStringMap("Final configuration:", settings);
 
+        // -----------------
+        // Get instance name
+
+        m_name = settings.at("name");
+
         // -------------------------------------------
         // Check if we need to disable verbose logging
-
 
         easyloggingpp::Logger * logger = easyloggingpp::Loggers::getLogger("business");
         easyloggingpp::Configurations & config = logger->configurations();
@@ -167,6 +170,14 @@ namespace kerberos
 
         configureCloud(settings);
 
+        // ------------------
+        // Stop the io thread
+
+        if(m_ioThread_running)
+        {
+            stopIOThread();
+        }
+
         // --------------------
         // Initialize machinery
 
@@ -174,6 +185,11 @@ namespace kerberos
         machinery = new Machinery();
         machinery->setCapture(capture);
         machinery->setup(settings);
+
+        // ------------------
+        // Open the io thread
+
+        startIOThread();
 
         // -------------------
         // Take first images
@@ -270,7 +286,8 @@ namespace kerberos
         uint8_t * data = new uint8_t[(int)(1280*960*1.5)];
         int32_t length = kerberos->capture->retrieveRAW(data);
 
-        while(kerberos->stream->isOpened())
+        while(kerberos->m_streamThread_running &&
+              kerberos->stream->isOpened())
         {
             try
             {
@@ -313,8 +330,8 @@ namespace kerberos
             stream->open();
         }
 
+        m_streamThread_running = true;
         pthread_create(&m_streamThread, NULL, streamContinuously, this);
-        pthread_detach(m_streamThread);
     }
 
     void Kerberos::stopStreamThread()
@@ -322,6 +339,7 @@ namespace kerberos
         // ----------------------------------
         // Cancel the existing stream thread,
 
+        m_streamThread_running = false;
         pthread_cancel(m_streamThread);
         pthread_join(m_streamThread, NULL);
     }
@@ -339,7 +357,7 @@ namespace kerberos
         int currentCount = 0;
         int timesEqual = 0;
 
-        while(true)
+        while(kerberos->m_ioThread_running)
         {
             try
             {
@@ -396,8 +414,8 @@ namespace kerberos
         // ------------------------------------------------
         // Start a new thread that cheks for detections
 
+        m_ioThread_running = true;
         pthread_create(&m_ioThread, NULL, checkDetectionsContinuously, this);
-        pthread_detach(m_ioThread);
     }
 
     void Kerberos::stopIOThread()
@@ -405,6 +423,7 @@ namespace kerberos
         // ----------------------------------
         // Cancel the existing io thread,
 
+        m_ioThread_running = false;
         pthread_cancel(m_ioThread);
         pthread_join(m_ioThread, NULL);
     }
