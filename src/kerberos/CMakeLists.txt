@@ -5,6 +5,7 @@
 
     set(KERBEROS_SRC
         cloud/Cloud.cpp
+        cloud/ForwardStream.cpp
         capture/Capture.cpp
         capture/Stream.cpp
         capture/Image.cpp
@@ -48,6 +49,7 @@
         machinery/io/IoWebhook.cpp
         machinery/io/IoScript.cpp
         machinery/io/IoMQTT.cpp
+        machinery/io/IoPushbullet.cpp
     )
 
     set(KERBEROS_DEPENDENCIES ${KERBEROS_DEPENDENCIES} opencv restclient mosquitto)

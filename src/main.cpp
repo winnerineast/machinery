@@ -20,8 +20,8 @@
 #include <iostream>
 #include <fstream>
 #include <signal.h>
-#include "easylogging++.h"
 
+#include "easylogging++.h"
 _INITIALIZE_EASYLOGGINGPP
 
 using namespace kerberos;
@@ -60,7 +60,7 @@ int main(int argc, char** argv)
     config.setAll(easyloggingpp::ConfigurationType::ToFile, "true");
     std::string logFile = (helper::getValueByKey(parameters, "log")) ?: LOG_PATH;
     config.setAll(easyloggingpp::ConfigurationType::Filename, logFile);
-    config.setAll(easyloggingpp::ConfigurationType::RollOutSize, "100000"); // 100MB
+    config.setAll(easyloggingpp::ConfigurationType::RollOutSize, "10000000"); // 10MB
     easyloggingpp::Loggers::reconfigureAllLoggers(config);
 
     LINFO << "Logging is written to: " + logFile;

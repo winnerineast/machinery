@@ -94,7 +94,8 @@ namespace kerberos
                 }
                 catch(cv::Exception & ex)
                 {
-                    LERROR << ex.what();
+                    //LERROR << ex.what();
+                    LERROR << "Capture: devices is blocking, and not grabbing any more frames.";
                 }
             }
             usleep(333*100);

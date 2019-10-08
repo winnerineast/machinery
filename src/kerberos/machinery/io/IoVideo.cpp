@@ -260,7 +260,7 @@ namespace kerberos
 
             pthread_mutex_lock(&m_release_lock);
 
-            BINFO << "IoVideo: firing";
+            LINFO << "IoVideo: firing";
 
             // ------------------
             // Check if the camera supports on board recording (camera specific),
@@ -324,7 +324,7 @@ namespace kerberos
                     // ---------------
                     // Start recording
 
-                    BINFO << "IoVideo: start new recording " << m_fileName;
+                    LINFO << "IoVideo: start new recording " << m_fileName;
 
                     m_writer = new cv::VideoWriter();
                     m_writer->open(m_path, m_codec, m_fps, cv::Size(image.getColumns(), image.getRows()));
@@ -408,14 +408,14 @@ namespace kerberos
         double cronoTime = (double) (cv::getTickCount() / cv::getTickFrequency());
         double startedRecording = cronoTime;
 
-        BINFO << "IoVideo (FFMPEG): start writing images";
+        LINFO << "IoVideo (FFMPEG): start writing images";
 
         pthread_mutex_lock(&video->m_write_lock);
 
         // Todo write video with FFMPEG..
         // .. (video->m_path);
 
-        BINFO << "IoVideo: locked write thread";
+        LINFO << "IoVideo: locked write thread";
 
         pthread_mutex_lock(&video->m_time_lock);
         double timeToRecord = video->m_timeStartedRecording + video->m_recordingTimeAfter;
@@ -444,7 +444,7 @@ namespace kerberos
             LERROR << ex.what();
         }
 
-        BINFO << "IoVideo: end writing images";
+        LINFO << "IoVideo: end writing images";
 
         pthread_mutex_lock(&video->m_release_lock);
 
@@ -467,12 +467,12 @@ namespace kerberos
         }
 
 
-        BINFO << "IoVideo: remove videowriter";
+        LINFO << "IoVideo: remove videowriter";
 
         pthread_mutex_unlock(&video->m_release_lock);
         pthread_mutex_unlock(&video->m_write_lock);
 
-        BINFO << "IoVideo: unlocking write thread";
+        LINFO << "IoVideo: unlocking write thread";
     }
 
     void * recordOnboard(void * self)
@@ -483,13 +483,13 @@ namespace kerberos
         double cronoTime = (double) (cv::getTickCount() / cv::getTickFrequency());
         double startedRecording = cronoTime;
 
-        BINFO << "IoVideo (OnBoard): start writing images";
+        LINFO << "IoVideo (OnBoard): start writing images";
 
         pthread_mutex_lock(&video->m_write_lock);
 
         video->m_capture->startRecord(video->m_path);
 
-        BINFO << "IoVideo: locked write thread";
+        LINFO << "IoVideo: locked write thread";
 
         pthread_mutex_lock(&video->m_time_lock);
         double timeToRecord = video->m_timeStartedRecording + video->m_recordingTimeAfter;
@@ -518,7 +518,7 @@ namespace kerberos
             LERROR << ex.what();
         }
 
-        BINFO << "IoVideo: end writing images";
+        LINFO << "IoVideo: end writing images";
 
         pthread_mutex_lock(&video->m_release_lock);
 
@@ -538,12 +538,12 @@ namespace kerberos
         }
 
 
-        BINFO << "IoVideo: remove videowriter";
+        LINFO << "IoVideo: remove videowriter";
 
         pthread_mutex_unlock(&video->m_release_lock);
         pthread_mutex_unlock(&video->m_write_lock);
 
-        BINFO << "IoVideo: unlocking write thread";
+        LINFO << "IoVideo: unlocking write thread";
     }
 
     // -------------------------------------------
@@ -562,11 +562,11 @@ namespace kerberos
         double startedRecording = cronoTime;
         double fpsToTime = 1. / video->m_fps;
 
-        BINFO << "IoVideo (OpenCV): start writing images";
+        LINFO << "IoVideo (OpenCV): start writing images";
 
         pthread_mutex_lock(&video->m_write_lock);
 
-        BINFO << "IoVideo: locked write thread";
+        LINFO << "IoVideo: locked write thread";
 
         pthread_mutex_lock(&video->m_time_lock);
         double timeToRecord = video->m_timeStartedRecording + video->m_recordingTimeAfter;
@@ -606,7 +606,7 @@ namespace kerberos
                 }
                 else
                 {
-                    BINFO << "IoVideo: framerate is too fast, can't record video at this speed (" << video->m_fps << "/FPS)";
+                    LINFO << "IoVideo: framerate is too fast, can't record video at this speed (" << video->m_fps << "/FPS)";
                 }
             }
         }
@@ -617,7 +617,7 @@ namespace kerberos
             LERROR << ex.what();
         }
 
-        BINFO << "IoVideo: end writing images";
+        LINFO << "IoVideo: end writing images";
 
         pthread_mutex_lock(&video->m_release_lock);
 
@@ -647,12 +647,12 @@ namespace kerberos
         }
 
 
-        BINFO << "IoVideo: remove videowriter";
+        LINFO << "IoVideo: remove videowriter";
 
         pthread_mutex_unlock(&video->m_release_lock);
         pthread_mutex_unlock(&video->m_write_lock);
 
-        BINFO << "IoVideo: unlocking write thread";
+        LINFO << "IoVideo: unlocking write thread";
     }
 
     void IoVideo::drawDateOnImage(Image & image, std::string timestamp)
@@ -690,7 +690,7 @@ namespace kerberos
         bool recording = true;
 
 
-        BINFO << "IoVideo: initializing capture thread";
+        LINFO << "IoVideo: initializing capture thread";
 
         while(recording)
         {
@@ -726,7 +726,7 @@ namespace kerberos
             usleep(1000); // sleep 1 ms
         }
 
-        BINFO << "IoVideo: closing capture thread";
+        LINFO << "IoVideo: closing capture thread";
     }
 
     Image IoVideo::getImage()

@@ -40,6 +40,7 @@
 //
 // Log location macros
 //
+#define _ELPP_STRICT_ROLLOUT
 #if !defined(__FILE__)
 #   define __FILE__ ""
 #endif // !defined(__FILE__)

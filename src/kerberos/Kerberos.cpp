@@ -29,7 +29,6 @@ namespace kerberos
         std::string file = configuration.substr(configuration.rfind('/')+1);
         guard = new FW::Guard();
         guard->listenTo(directory, file);
-
         guard->onChange(&Kerberos::reconfigure);
         guard->start();
 
@@ -56,7 +55,7 @@ namespace kerberos
 
             if(!machinery->allowed(m_images))
             {
-                BINFO << "Machinery on hold, conditions failed.";
+                LINFO << "Machinery on hold, conditions failed.";
                 continue;
             }
 
@@ -77,6 +76,15 @@ namespace kerberos
 
                 Detection detection(toJSON(data), cleanImage);
                 m_detections.push_back(detection);
+
+                // -----------------------------------------------
+                // If we have a cloud account, send a notification
+                // to the cloud app.
+
+                if(cloud && cloud->m_publicKey != "")
+                {
+                    cloud->fstream.triggerMotion();
+                }
 
                 pthread_mutex_unlock(&m_ioLock);
             }
@@ -215,7 +223,7 @@ namespace kerberos
 
         if(stream != 0)
         {
-            LINFO << "Stopping streaming";
+            LINFO << "Steam: Stopping streaming thread";
             stopStreamThread();
             delete stream;
             stream = 0;
@@ -223,12 +231,20 @@ namespace kerberos
 
         if(capture != 0)
         {
-            LINFO << "Stopping capture device";
+            LINFO << "Capture: Stop capture device";
             if(capture->isOpened())
             {
+                BINFO << "Capture: Disable capture device in machinery";
                 machinery->disableCapture();
+                BINFO << "Capture: Stop cloud live streaming";
+                cloud->stopLivestreamThread();
+                BINFO << "Capture: Disable capture device in cloud";
+                cloud->disableCapture();
+                BINFO << "Capture: Stop capture grab thread";
                 capture->stopGrabThread();
+                BINFO << "Capture: Stop capture health thread";
                 capture->stopHealthThread();
+                BINFO << "Capture: Close capture device";
                 capture->close();
             }
             delete capture;
@@ -238,10 +254,12 @@ namespace kerberos
         // ---------------------------
         // Initialize capture device
 
-        LINFO << "Starting capture device: " + settings.at("capture");
+        LINFO << "Capture: Start capture device: " + settings.at("capture");
         capture = Factory<Capture>::getInstance()->create(settings.at("capture"));
         capture->setup(settings);
+        BINFO << "Capture: Start capture grab thread";
         capture->startGrabThread();
+        BINFO << "Capture: Start capture health thread";
         capture->startHealthThread();
 
         // ------------------
@@ -250,6 +268,7 @@ namespace kerberos
         usleep(1000*5000);
         stream = new Stream();
         stream->configureStream(settings);
+        LINFO << "Capture: Start streaming thread";
         startStreamThread();
     }
 
@@ -263,15 +282,19 @@ namespace kerberos
 
         if(cloud != 0)
         {
-            LINFO << "Stopping cloud service";
+            LINFO << "Cloud: Stop cloud service";
+            BINFO << "Cloud: Stop upload thread";
             cloud->stopUploadThread();
+            BINFO << "Cloud: Stop polling thread";
             cloud->stopPollThread();
+            BINFO << "Cloud: Stop health thread";
             cloud->stopHealthThread();
             delete cloud;
         }
 
         LINFO << "Starting cloud service: " + settings.at("cloud");
         cloud = Factory<Cloud>::getInstance()->create(settings.at("cloud"));
+        cloud->setCapture(capture);
         cloud->setup(settings);
     }
 
@@ -376,7 +399,7 @@ namespace kerberos
                 // If no new detections are found, we will run the IO devices (or max 30 images in memory)
                 if((currentCount > 0 && timesEqual > 4) || currentCount >= 30)
                 {
-                    BINFO << "Executing IO devices for " + helper::to_string(currentCount)  + " detection(s)";
+                    LINFO << "Executing IO devices for " + helper::to_string(currentCount)  + " detection(s)";
 
                     for (int i = 0; i < currentCount; i++)
                     {
@@ -391,7 +414,7 @@ namespace kerberos
                         }
                         else
                         {
-                            LERROR << "IO: can't execute";
+                            LOG(ERROR) << "IO: can't execute";
                         }
                         pthread_mutex_unlock(&kerberos->m_ioLock);
                         usleep(500*1000);

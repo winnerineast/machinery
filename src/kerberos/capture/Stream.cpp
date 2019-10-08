@@ -97,7 +97,6 @@ namespace kerberos
 
             FD_SET(sock, &master);
 
-
             LINFO << "Stream: Configured stream on port " << helper::to_string(m_streamPort) << " with quality: " << helper::to_string(m_quality);
 
             return true;
@@ -174,11 +173,13 @@ namespace kerberos
 
                 if(!tokenFound)
                 {
+                    //LERROR << "Stream: no token found in client request.";
                     LERROR << "Stream: no token found in client request.";
                     return false;
                 }
                 else if(token != credentialsBase64)
                 {
+                    //LERROR << "Stream: token found, but it's not correct.";
                     LERROR << "Stream: token found, but it's not correct.";
                     return false;
                 }
@@ -187,6 +188,7 @@ namespace kerberos
             }
             else
             {
+                //LERROR << "Stream: no token found in client request.";
                 LERROR << "Stream: no token found in client request.";
                 return false;
             }
@@ -212,6 +214,8 @@ namespace kerberos
 
         if (client == SOCKET_ERROR)
         {
+            //LERROR << "Stream: couldn't accept connection on sock";
+            //LERROR << "Stream: reopening master sock";
             LERROR << "Stream: couldn't accept connection on sock";
             LERROR << "Stream: reopening master sock";
             release();
@@ -250,10 +254,8 @@ namespace kerberos
                 "Content-Type: multipart/x-mixed-replace; boundary=mjpegstream\r\n"
                 "\r\n",0);
 
-
             LINFO << "Stream: authentication success";
             LINFO << "Stream: opening socket for new client.";
-
             clients.push_back(client);
             packetsSend[client] = 0;
 
@@ -271,7 +273,8 @@ namespace kerberos
             snprintf (response, sizeof (response), unauthorized, requestInfo["method"].c_str());
             _write (client, response, strlen(response));
 
-            LINFO << "Stream: authentication failed.";
+            //LINFO << "Stream: authentication failed.";
+            LOG(INFO) << "Stream: authentication failed.";
 
             FD_CLR(client, &master);
             shutdown(client, 2);
